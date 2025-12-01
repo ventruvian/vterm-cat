@@ -96,24 +96,6 @@ Otherwise run MEOW-INSERT-EXIT-FN to drop into NORMAL."
 
 ;;; Commands
 
-;; Pass through:
-;; Keys not explicitly bound in `vterm-cat-mode-map' would normally be looked up in
-;; `vterm-mode-map' already, but point as vterm sees it would not be updated to re-
-;; flect any movements done in meow's normal state. Instead of binding functions to
-;; all relevant keys we only bind a fallback that syncs the point before passing the
-;; key event to the keymaps further down in the keymap stack.
-;; (defun vterm-cat-sync-point-cascade-event ()
-;;   (interactive)
-;;   (vterm-goto-char (point))
-;;   (let* (vterm-cat-mode                 ;; bypass emulation map
-;;          (cmd (keymap-lookup (current-active-maps)
-;;                              (key-description (this-command-keys)))))
-;;     (when (commandp cmd) (call-interactively cmd))))
-
-;; (define-key vterm-cat-mode-map
-;;             [t] #'vterm-cat-sync-point-cascade-event)
-
-
 (defgroup vterm-cat nil
   "Custom group for vterm-cat."
   :group 'meow)
@@ -129,6 +111,10 @@ If replacement is nil a command will be generated that syncs point with vterm."
 (defun vterm-cat-kill-line ()
   "Kill the line in vterm."
   (interactive)
+  ;; Trimming vterm's fake whitespace
+  ;; There is vterm-copy-mode but it seems overkill
+  (kill-new (with-restriction (point) (line-end-position)
+              (string-trim-right (buffer-string))))
   (vterm-goto-char (point))
   (vterm-send-key "k" nil nil 'ctrl))
 
