@@ -22,66 +22,10 @@
 (require 'vterm)
 (require 'meow)
 
-(defvar vterm-cat-mode-map
-  (let ((map (make-sparse-keymap)))
-    (keymap-set map "RET" #'vterm-send-return)
-    ;; (keymap-set map "<remap> <meow-undo>" #'vterm-undo)
-    ;; (keymap-set map "<remap> <meow-kill>" #'vterm-cat-kill-line)
-    map)
-  "Keymap used to override Meow's normal state in `vterm-mode'.")
-
-(defun vterm-cat--keymap-follow-normal ()
-  "Elevate precendence of `vterm-cat-mode-map' in `meow-normal-mode'."
-  (if meow-normal-mode
-      (vterm-cat--keymap-elevate)
-    (vterm-cat--keymap-demote)))
-
-(defun vterm-cat--keymap-elevate ()
-  "Elevate precendence of `vterm-cat-mode-map'."
-  (cl-callf2 push `(vterm-cat-mode . ,vterm-cat-mode-map)
-             emulation-mode-map-alists))
-
-(defun vterm-cat--keymap-demote ()
-  "Lessen precedence of `vterm-cat-mode-map'."
-  (cl-callf2 assq-delete-all 'vterm-cat-mode emulation-mode-map-alists))
-
-(defun vterm-cat--sync-point-h ()
-  "Sync point with vterm."
-  (when (derived-mode-p 'vterm-mode)
-    (vterm-goto-char (point))))
-
-(defun vterm-cat--setup ()
-  "Setup `vterm-cat-mode'."
-  ;; Make navigation work
-  (add-hook 'meow-insert-enter-hook
-            #'vterm-cat--sync-point-h
-            nil 'local)
-  ;; This will break expansion hints
-  ;; (add-hook 'pre-command-hook
-  ;;           #'vterm-cat--sync-point-h
-  ;;           nil 'local)
-  ;; Setup keymap for meow overrides
-  (add-hook 'meow-normal-mode-hook
-            #'vterm-cat--keymap-follow-normal nil 'local)
-  ;; Enable keymap if already in normal state
-  (when meow-normal-mode (vterm-cat--keymap-elevate)))
-
-(defun vterm-cat--teardown ()
-  "Teardown `vterm-cat-mode'."
-  (remove-hook 'meow-insert-enter-hook
-               #'vterm-cat--sync-point-h
-               'local)
-  ;; (remove-hook 'pre-command-hook
-  ;;              #'vterm-cat--sync-point-h
-  ;;              'local)
-  (remove-hook 'meow-normal-mode-hook
-               #'vterm-cat--keymap-follow-normal
-               'local)
-  (vterm-cat--keymap-demote))
+;;; Activation Mode
 
 (define-minor-mode vterm-cat-mode
   "Integrate `meow-normal-mode' with vterm buffers."
-  :keymap vterm-cat-mode-map
   :lighter " vcat"
   (progn
     (unless (derived-mode-p 'vterm-mode)
@@ -89,6 +33,61 @@
     (if vterm-cat-mode
         (vterm-cat--setup)
       (vterm-cat--teardown))))
+
+;; Copy of meow-insert-exit that drops to VTERM
+(defun vterm-cat-insert-exit ()
+  "Switch to VTERM state."
+  (interactive)
+  (cond
+   ((meow-keypad-mode-p)
+    (meow--exit-keypad-state))
+   ((and (meow-insert-mode-p)
+         (eq meow--beacon-defining-kbd-macro 'quick))
+    (setq meow--beacon-defining-kbd-macro nil)
+    (meow-beacon-insert-exit))
+   ((meow-insert-mode-p)
+    (meow--switch-state 'vterm))))
+
+(defun vterm-cat-meow-insert-exit-a (meow-insert-exit-fn)
+  "In `vterm-mode' drop into VTERM state.
+Otherwise run MEOW-INSERT-EXIT-FN to drop into NORMAL."
+  (if (and (derived-mode-p 'vterm-mode) vterm-cat-mode)
+      (vterm-cat-insert-exit)
+    (funcall meow-insert-exit-fn)))
+
+(defun vterm-cat--setup ()
+  "Setup `vterm-cat-mode'."
+  (add-hook 'meow-insert-enter-hook
+            #'vterm-cat--sync-point-h
+            nil 'local)
+  (advice-add 'meow-insert-exit :around
+              #'vterm-cat-meow-insert-exit-a))
+
+(defun vterm-cat--teardown ()
+  "Teardown `vterm-cat-mode'."
+  (remove-hook 'meow-insert-enter-hook
+               #'vterm-cat--sync-point-h
+               'local)
+  (advice-remove 'meow-insert-exit
+                 #'vterm-cat-meow-insert-exit-a))
+
+(defun vterm-cat--sync-point-h ()
+  "Sync point with vterm."
+  (when (derived-mode-p 'vterm-mode)
+    (vterm-goto-char (point))))
+
+;;; Vterm State
+
+(defvar-keymap meow-vterm-state-keymap
+  :doc "Keymap for Meow's Vterm state."
+  :parent meow-normal-state-keymap
+  "RET" #'vterm-send-return)
+
+(meow-define-state vterm
+  "Meow VTERM state minor mode."
+  :lighter " [V]"
+  :keymap meow-vterm-state-keymap
+  :face meow-normal-cursor)
 
 ;;; Commands
 
@@ -109,24 +108,29 @@
 ;; (define-key vterm-cat-mode-map
 ;;             [t] #'vterm-cat-sync-point-cascade-event)
 
+
+(defgroup vterm-cat nil
+  "Custom group for vterm-cat."
+  :group 'meow)
+
+(defcustom vterm-cat-replace-commands
+  '((meow-undo . vterm-undo)
+    (meow-kill . vterm-cat-kill-line))
+  "Alist mapping commands in NORMAL state to their replacement in VTERM state.
+If replacement is nil a command will be generated that syncs point with vterm."
+  :type '(alist :key-type symbol
+          :value-type (choice symbol (const nil))))
+
 (defun vterm-cat-kill-line ()
   "Kill the line in vterm."
   (interactive)
   (vterm-goto-char (point))
   (vterm-send-key "k" nil nil 'ctrl))
 
-(defvar vterm-cat--commands-alist
-  '((meow-undo . vterm-undo)
-    (meow-kill . vterm-cat-kill-line))
-  "Mapping of meow-commands to their vterm analogue.")
-
-;; remap syntax "<remap> <cmd>" doesn't work for some reason here
-(map-keymap
- (lambda (key mcmd)
-   (when-let ((vcmd (alist-get mcmd vterm-cat--commands-alist)))
-     ;; (message "Set %s[%s] to %s" (single-key-description key) mcmd vcmd)
-     (define-key vterm-cat-mode-map (vector key) vcmd)))
- meow-normal-state-keymap)
+;; Remap commands
+(cl-loop for (mcmd . vcmd) in vterm-cat-replace-commands
+         do (define-key meow-vterm-state-keymap
+                        (vector 'remap mcmd) vcmd))
 
 ;;; Cursor
 
