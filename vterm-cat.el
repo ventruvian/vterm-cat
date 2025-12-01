@@ -61,7 +61,10 @@ Otherwise run MEOW-INSERT-EXIT-FN to drop into NORMAL."
             #'vterm-cat--sync-point-h
             nil 'local)
   (advice-add 'meow-insert-exit :around
-              #'vterm-cat-meow-insert-exit-a))
+              #'vterm-cat-meow-insert-exit-a)
+  ;; Enable expansion hints
+  (advice-add 'meow-normal-mode-p :after-until
+              #'meow-vterm-mode-p))
 
 (defun vterm-cat--teardown ()
   "Teardown `vterm-cat-mode'."
@@ -69,7 +72,9 @@ Otherwise run MEOW-INSERT-EXIT-FN to drop into NORMAL."
                #'vterm-cat--sync-point-h
                'local)
   (advice-remove 'meow-insert-exit
-                 #'vterm-cat-meow-insert-exit-a))
+                 #'vterm-cat-meow-insert-exit-a)
+  (advice-remove 'meow-normal-mode-p
+                 #'meow-vterm-mode-p))
 
 (defun vterm-cat--sync-point-h ()
   "Sync point with vterm."
