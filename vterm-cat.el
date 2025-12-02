@@ -113,6 +113,23 @@ If replacement is nil a command will be generated that syncs point with vterm."
   :type '(alist :key-type symbol
           :value-type (choice symbol (const nil))))
 
+(defun vterm-cat--sync-point-a (&rest _)
+  "Sync point to vterm.
+Intended as after advice for meow commands."
+  (vterm-goto-char (point)))
+
+(defun vterm-cat--make-pointsync-cmd (mcmd)
+  "Define a version of meow-command MCMD that syncs point with vterm.
+Return symbol of newly created command."
+  (let* ((mname (symbol-name mcmd))
+         (vcmd-sym (intern (concat "vterm-cat-"
+                                   (if (string-prefix-p "meow-" mname)
+                                       (substring mname 5)
+                                     mname)))))
+    (defalias vcmd-sym (symbol-function mcmd))
+    (advice-add vcmd-sym :after #'vterm-cat--sync-point-a)
+    vcmd-sym))
+
 (defun vterm-cat-kill-line ()
   "Kill the line in vterm."
   (interactive)
@@ -125,6 +142,9 @@ If replacement is nil a command will be generated that syncs point with vterm."
 
 ;; Remap commands
 (cl-loop for (mcmd . vcmd) in vterm-cat-replace-commands
+         unless vcmd
+         do (setq vcmd (vterm-cat--make-pointsync-cmd mcmd))
+         end
          do (define-key meow-vterm-state-keymap
                         (vector 'remap mcmd) vcmd))
 
