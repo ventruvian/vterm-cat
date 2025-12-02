@@ -15,7 +15,7 @@
 ;;
 ;;; Commentary:
 ;;
-;;  Integrate emacs' meow keybinding system into vterm.
+;;  Integrate meow's keybinding system into vterm.
 ;;  Ideally meow's commands were generic functions then contextualizing them would be trivial.
 ;;
 ;;; Code:
