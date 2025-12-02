@@ -86,7 +86,12 @@ Otherwise run MEOW-INSERT-EXIT-FN to drop into NORMAL."
 (defvar-keymap meow-vterm-state-keymap
   :doc "Keymap for Meow's Vterm state."
   :parent meow-normal-state-keymap
-  "RET" #'vterm-send-return)
+  "RET" #'vterm-send-return
+  ;; Meow navigates by emitting these
+  "C-b" #'backward-char
+  "C-f" #'forward-char
+  "C-p" #'previous-line
+  "C-n" #'forward-line)
 
 (meow-define-state vterm
   "Meow VTERM state minor mode."
