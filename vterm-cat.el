@@ -106,8 +106,9 @@ Otherwise run MEOW-INSERT-EXIT-FN to drop into NORMAL."
   :group 'meow)
 
 (defcustom vterm-cat-replace-commands
-  '((meow-undo . vterm-undo)
-    (meow-kill . vterm-cat-kill-line))
+  '((meow-undo   . vterm-undo)
+    (meow-kill   . vterm-cat-kill-line)
+    (meow-delete . vterm-cat-forward-delete-char))
   "Alist mapping commands in NORMAL state to their replacement in VTERM state.
 If replacement is nil a command will be generated that syncs point with vterm."
   :type '(alist :key-type symbol
@@ -130,6 +131,7 @@ Return symbol of newly created command."
     (advice-add vcmd-sym :after #'vterm-cat--sync-point-a)
     vcmd-sym))
 
+;;;###autoload
 (defun vterm-cat-kill-line ()
   "Kill the line in vterm."
   (interactive)
@@ -139,6 +141,14 @@ Return symbol of newly created command."
               (string-trim-right (buffer-string))))
   (vterm-goto-char (point))
   (vterm-send-key "k" nil nil 'ctrl))
+
+;;;###autoload
+(defun vterm-cat-forward-delete-char (&optional N)
+  "Delete N or 1 char(s) forward."
+  (interactive "p")
+  (vterm-goto-char (point))
+  (cl-loop repeat (or N 1)
+           do (vterm-send-delete)))
 
 ;; Remap commands
 (cl-loop for (mcmd . vcmd) in vterm-cat-replace-commands
